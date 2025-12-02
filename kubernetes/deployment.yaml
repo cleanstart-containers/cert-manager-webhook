@@ -1,0 +1,201 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager-webhook
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: webhook-sa
+  namespace: cert-manager-webhook
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: webhook-role
+rules:
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - "*"
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  - pods
+  - endpoints
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: webhook-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: webhook-role
+subjects:
+- kind: ServiceAccount
+  name: webhook-sa
+  namespace: cert-manager-webhook
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-manager-webhook
+  namespace: cert-manager-webhook
+  labels:
+    app: cert-manager-webhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cert-manager-webhook
+  template:
+    metadata:
+      labels:
+        app: cert-manager-webhook
+    spec:
+      serviceAccountName: webhook-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: webhook
+        image: cleanstart/cert-manager-webhook:latest-dev
+        imagePullPolicy: IfNotPresent
+        command: ["/usr/bin/webhook"]
+        args:
+        - --dynamic-serving-ca-secret-namespace=cert-manager-webhook
+        - --dynamic-serving-ca-secret-name=cert-manager-webhook-ca
+        - --dynamic-serving-dns-names=cert-manager-webhook,cert-manager-webhook.cert-manager-webhook.svc,cert-manager-webhook.cert-manager-webhook.svc.cluster.local
+        - --secure-port=6443
+        - --metrics-listen-address=0.0.0.0:9402
+        - --healthz-port=6080
+        env:
+        - name: SSL_CERT_FILE
+          value: /etc/ssl/certs/ca-certificates.crt
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        ports:
+        - containerPort: 6443
+          name: webhook
+          protocol: TCP
+        - containerPort: 9402
+          name: metrics
+          protocol: TCP
+        - containerPort: 6080
+          name: healthz
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+        # Liveness probe disabled initially to allow secret creation
+        # Re-enable after the webhook is running successfully
+        # livenessProbe:
+        #   httpGet:
+        #     path: /livez
+        #     port: 9402
+        #   initialDelaySeconds: 120
+        #   periodSeconds: 20
+        #   timeoutSeconds: 5
+        #   failureThreshold: 6
+        # Readiness probe disabled initially to allow secret creation
+        # The webhook needs time to create the CA secret and generate certificates
+        # Uncomment and adjust after the webhook is running successfully
+        # readinessProbe:
+        #   httpGet:
+        #     path: /readyz
+        #     port: 9402
+        #   initialDelaySeconds: 90
+        #   periodSeconds: 10
+        #   timeoutSeconds: 5
+        #   failureThreshold: 15
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cert-manager-webhook
+  namespace: cert-manager-webhook
+  labels:
+    app: cert-manager-webhook
+spec:
+  type: ClusterIP
+  ports:
+  - port: 443
+    targetPort: 6443
+    protocol: TCP
+    name: webhook
+  - port: 9402
+    targetPort: 9402
+    protocol: TCP
+    name: metrics
+  selector:
+    app: cert-manager-webhook
+
