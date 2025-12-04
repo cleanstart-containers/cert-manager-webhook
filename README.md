@@ -263,17 +263,6 @@ See the `kubernetes/README.md` file for detailed deployment instructions and tes
 - **CleanStart All Images:** https://images.cleanstart.com
 - **CleanStart Community Images:** https://hub.docker.com/u/cleanstart
 
----
-
-## Disclaimer & License
-
-### Disclaimer
-
-**Disclaimer:** This documentation is provided for informational purposes only. Users are responsible for ensuring compliance with applicable laws, regulations, and security requirements. CleanStart makes no warranties regarding the suitability of these images for specific use cases or environments.
-
-### License
-
-Apache-2.0
 
 ---
 
@@ -284,4 +273,5 @@ CleanStart offers Docker images that include third-party open-source libraries a
 Users acknowledge and agree that open-source software may contain undiscovered vulnerabilities or introduce new risks through updates. CleanStart shall not be liable for security issues originating from third-party libraries, including but not limited to zero-day exploits, supply chain attacks, or contributor-introduced risks.
 
 **Security remains a shared responsibility:** CleanStart provides updated images and guidance where possible, while users are responsible for evaluating deployments and implementing appropriate controls.
+
 
